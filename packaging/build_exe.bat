@@ -2,50 +2,32 @@
 setlocal
 chcp 65001 >nul
 
-set "PYTHON_EXE=C:\Users\gao_h\AppData\Local\Python\bin\python.exe"
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..") do set "PROJECT_ROOT=%%~fI"
-set "SPEC_FILE=%SCRIPT_DIR%LJQCApp.spec"
-set "SAFE_BUILD_DIR=%LOCALAPPDATA%\LJQCApp\pyinstaller_build"
-set "SAFE_DIST_DIR=%LOCALAPPDATA%\LJQCApp\pyinstaller_dist"
-set "SAFE_PACKAGE_DIR=%SAFE_DIST_DIR%\LJQCApp"
-set "PROJECT_DIST_DIR=%PROJECT_ROOT%dist\LJQCApp"
+set "BUILD_SCRIPT=%SCRIPT_DIR%build_windows_demo.ps1"
+set "OUTPUT_ROOT=%PROJECT_ROOT%\dist\windows-x64"
 
-echo [LJQCApp] Building EXE package...
+echo [LJQCApp] Building Windows desktop packages...
 echo.
 
-if not exist "%PYTHON_EXE%" (
-    echo [ERROR] Python interpreter not found:
-    echo %PYTHON_EXE%
+if not exist "%BUILD_SCRIPT%" (
+    echo [ERROR] Build script not found:
+    echo %BUILD_SCRIPT%
     echo.
     pause
     exit /b 1
 )
 
-if not exist "%SPEC_FILE%" (
-    echo [ERROR] Spec file not found:
-    echo %SPEC_FILE%
-    echo.
-    pause
-    exit /b 1
-)
-
-"%PYTHON_EXE%" -m PyInstaller --version >nul 2>nul
+where powershell.exe >nul 2>nul
 if errorlevel 1 (
-    echo [ERROR] PyInstaller is not installed in this Python environment.
-    echo Please run:
-    echo "%PYTHON_EXE%" -m pip install pyinstaller
+    echo [ERROR] Windows PowerShell was not found.
     echo.
     pause
     exit /b 1
 )
 
-pushd "%PROJECT_ROOT%"
-if not exist "%SAFE_BUILD_DIR%" mkdir "%SAFE_BUILD_DIR%"
-if not exist "%SAFE_DIST_DIR%" mkdir "%SAFE_DIST_DIR%"
-"%PYTHON_EXE%" -m PyInstaller --clean -y --distpath "%SAFE_DIST_DIR%" --workpath "%SAFE_BUILD_DIR%" "%SPEC_FILE%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%BUILD_SCRIPT%" -OutputRoot "%OUTPUT_ROOT%"
 set "BUILD_EXIT_CODE=%ERRORLEVEL%"
-popd
 
 if not "%BUILD_EXIT_CODE%"=="0" (
     echo.
@@ -55,23 +37,10 @@ if not "%BUILD_EXIT_CODE%"=="0" (
     exit /b %BUILD_EXIT_CODE%
 )
 
-if exist "%PROJECT_DIST_DIR%" rmdir /s /q "%PROJECT_DIST_DIR%"
-if not exist "%PROJECT_ROOT%dist" mkdir "%PROJECT_ROOT%dist"
-robocopy "%SAFE_PACKAGE_DIR%" "%PROJECT_DIST_DIR%" /MIR >nul
-set "COPY_EXIT_CODE=%ERRORLEVEL%"
-if %COPY_EXIT_CODE% GEQ 8 (
-    echo.
-    echo [FAILED] Build succeeded, but copying files back to project dist failed.
-    echo Safe package folder: %SAFE_PACKAGE_DIR%
-    echo.
-    pause
-    exit /b %COPY_EXIT_CODE%
-)
-
 echo.
 echo [OK] Build completed successfully.
-echo Output folder: dist\LJQCApp
-echo Share the whole dist\LJQCApp folder with your teammates.
+echo Single-file EXE: dist\windows-x64\release\LJQCApp.exe
+echo Folder version:  dist\windows-x64\dist\LJQCApp
 echo.
 pause
 exit /b 0
