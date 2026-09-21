@@ -1,13 +1,39 @@
 param(
-    [string]$OutputRoot = "D:\LJQCappdemo"
+    [string]$OutputRoot = "",
+    [string]$PythonExe = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
-$script:PythonExe = "C:\Users\gao_h\AppData\Local\Python\bin\python.exe"
+$script:PythonExe = $PythonExe
 $script:SpecFile = Join-Path $RepoRoot "packaging\LJQCApp.spec"
 $script:LauncherProject = Join-Path $RepoRoot "packaging\desktop_launcher\LJQCApp.Desktop.csproj"
+
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $localAppData = [Environment]::GetFolderPath("LocalApplicationData")
+    $OutputRoot = Join-Path $localAppData "LJQCApp\windows_build"
+}
+$OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
+$outputDriveRoot = [System.IO.Path]::GetPathRoot($OutputRoot)
+if ($OutputRoot.Equals($outputDriveRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "OutputRoot must be a dedicated build directory, not a drive root: $OutputRoot"
+}
+
+if ([string]::IsNullOrWhiteSpace($script:PythonExe)) {
+    if (-not [string]::IsNullOrWhiteSpace($env:LJQCAPP_PYTHON_EXE)) {
+        $script:PythonExe = $env:LJQCAPP_PYTHON_EXE
+    }
+    else {
+        $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
+        if ($null -eq $pythonCommand) {
+            $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+        }
+        if ($null -ne $pythonCommand) {
+            $script:PythonExe = $pythonCommand.Source
+        }
+    }
+}
 
 $buildRoot = Join-Path $OutputRoot "build"
 $distRoot = Join-Path $OutputRoot "dist"
@@ -62,7 +88,7 @@ function Invoke-PyInstallerBuild {
         $env:LJQCAPP_APP_NAME = $AppName
         $env:LJQCAPP_CONSOLE = "false"
 
-        & $PythonExe -m PyInstaller --clean -y --distpath $DistPath --workpath $WorkPath $SpecFile
+        & $script:PythonExe -m PyInstaller --clean -y --distpath $DistPath --workpath $WorkPath $SpecFile
         if ($LASTEXITCODE -ne 0) {
             throw "PyInstaller build failed for $AppName ($BundleMode)."
         }
@@ -109,8 +135,18 @@ function Invoke-DotnetPublish {
     }
 }
 
-if (-not (Test-Path -LiteralPath $PythonExe)) {
-    throw "Python executable not found: $PythonExe"
+if ([string]::IsNullOrWhiteSpace($script:PythonExe) -or -not (Test-Path -LiteralPath $script:PythonExe)) {
+    throw "Python executable not found. Install Python 3.12 or pass -PythonExe with the full path to python.exe."
+}
+
+$dotnetCommand = Get-Command dotnet -ErrorAction SilentlyContinue
+if ($null -eq $dotnetCommand) {
+    throw ".NET 8 SDK was not found. Install the .NET 8 SDK and try again."
+}
+
+& $script:PythonExe -m PyInstaller --version | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller is not installed. Run: python -m pip install -r requirements.txt pyinstaller==6.22.3"
 }
 
 if (-not (Test-Path -LiteralPath $SpecFile)) {
