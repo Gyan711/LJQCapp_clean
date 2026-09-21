@@ -80,8 +80,14 @@ python reset_db.py
 ### 安装打包工具
 
 ```powershell
-python -m pip install pyinstaller
+python -m pip install -r requirements.txt pyinstaller==6.22.3
 ```
+
+要求：
+
+- Windows 10/11 x64
+- Python 3.12 x64（安装时建议勾选 `Add python.exe to PATH`）
+- .NET 8 SDK（生成桌面壳和单文件版时需要）
 
 ### 推荐打包方式
 
@@ -89,16 +95,39 @@ python -m pip install pyinstaller
 
 - `packaging/build_exe.bat`
 
+完成后会生成：
+
+- 单文件版：`dist/windows-x64/release/LJQCApp.exe`
+- 文件夹版：`dist/windows-x64/dist/LJQCApp/`
+
 或手动执行：
 
 ```powershell
 python -m PyInstaller --clean -y packaging/LJQCApp.spec
 ```
 
+如果需要同时生成单文件 EXE 和文件夹版，可在 PowerShell 中执行：
+
+```powershell
+./packaging/build_windows_demo.ps1
+```
+
+脚本会自动查找当前电脑 `PATH` 中的 Python，不再依赖某个固定用户名或固定盘符。也可以显式指定：
+
+```powershell
+./packaging/build_windows_demo.ps1 -PythonExe "C:\Path\To\python.exe" -OutputRoot "D:\LJQCAppBuild"
+```
+
+仓库也提供 `.github/workflows/build-windows-exe.yml`。在 GitHub 的 Actions 页面手动运行 `Build Windows EXE` 后，可下载：
+
+- `LJQCApp-Windows-x64.exe`：单文件桌面版
+- `LJQCApp-Windows-x64-folder.zip`：兼容性更好的文件夹版
+
 ### 产物说明
 
-- EXE：`dist/LJQCApp/LJQCApp.exe`
-- 分发方式：把整个 `dist/LJQCApp` 文件夹发给同事
+- 单文件 EXE：`dist/windows-x64/release/LJQCApp.exe`
+- 文件夹版 EXE：`dist/windows-x64/dist/LJQCApp/LJQCApp.exe`
+- 优先分发单文件版；如果被杀毒软件拦截或启动较慢，再使用完整文件夹版
 
 如果项目路径包含中文，推荐优先使用 `packaging/build_exe.bat`：
 
