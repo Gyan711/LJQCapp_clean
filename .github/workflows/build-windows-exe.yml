@@ -69,10 +69,9 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $testLocalAppData = Join-Path $env:RUNNER_TEMP "LJQCAppLocalAppData"
-          $env:LOCALAPPDATA = $testLocalAppData
-          $logDirectory = Join-Path $testLocalAppData "LJQCApp"
+          $logDirectory = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "LJQCApp"
           New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+          "DIAGNOSTIC_LOG_DIRECTORY=$logDirectory" | Out-File -FilePath $env:GITHUB_ENV -Append
 
           function Test-LJQCAppLauncher {
             param(
@@ -134,7 +133,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LJQCApp-startup-diagnostics
-          path: ${{ runner.temp }}\LJQCAppLocalAppData\LJQCApp\*.log
+          path: ${{ env.DIAGNOSTIC_LOG_DIRECTORY }}\*.log
           if-no-files-found: warn
           retention-days: 7
 
