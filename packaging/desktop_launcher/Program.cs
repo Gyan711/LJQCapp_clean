@@ -59,9 +59,12 @@ internal sealed class LauncherForm : Form
             _port = _options.Port ?? GetFreeLoopbackPort();
             Log($"Launcher starting. target port={_port}");
 
-            ServiceExecutable serviceExecutable = PrepareServiceExecutable();
+            _statusLabel.Text = "正在准备程序组件，首次启动可能需要 30–90 秒...";
+            ServiceExecutable serviceExecutable = await Task.Run(PrepareServiceExecutable);
+            _statusLabel.Text = "正在启动本地质控服务...";
             _serviceProcess = StartServiceProcess(serviceExecutable.Path, _port);
 
+            _statusLabel.Text = "正在加载质控系统...";
             await WaitForServiceAsync(_serviceProcess, _port);
             await InitializeWebViewAsync(_port);
             ScheduleAutoCloseIfRequested();
