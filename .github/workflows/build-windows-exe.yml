@@ -65,6 +65,79 @@ jobs:
             Get-Item -LiteralPath $exe | Format-List FullName, Length, LastWriteTime
           }
 
+      - name: Launch Windows desktop packages
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $testLocalAppData = Join-Path $env:RUNNER_TEMP "LJQCAppLocalAppData"
+          $env:LOCALAPPDATA = $testLocalAppData
+          $logDirectory = Join-Path $testLocalAppData "LJQCApp"
+          New-Item -ItemType Directory -Path $logDirectory -Force | Out-Null
+
+          function Test-LJQCAppLauncher {
+            param(
+              [string]$ExecutablePath,
+              [string]$PackageName
+            )
+
+            Remove-Item -LiteralPath (Join-Path $logDirectory "desktop_launcher.log") -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath (Join-Path $logDirectory "launcher.log") -Force -ErrorAction SilentlyContinue
+
+            Write-Host "Starting $PackageName from $ExecutablePath"
+            $process = Start-Process `
+              -FilePath $ExecutablePath `
+              -ArgumentList "--auto-close-seconds", "15" `
+              -PassThru
+
+            if (-not $process.WaitForExit(180000)) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+              throw "$PackageName did not finish its startup smoke test within 180 seconds."
+            }
+
+            if ($process.ExitCode -ne 0) {
+              throw "$PackageName exited with code $($process.ExitCode)."
+            }
+
+            $desktopLogPath = Join-Path $logDirectory "desktop_launcher.log"
+            $serviceLogPath = Join-Path $logDirectory "launcher.log"
+            if (Test-Path -LiteralPath $desktopLogPath) {
+              Write-Host "===== $PackageName desktop_launcher.log ====="
+              Get-Content -LiteralPath $desktopLogPath
+            }
+            if (Test-Path -LiteralPath $serviceLogPath) {
+              Write-Host "===== $PackageName launcher.log ====="
+              Get-Content -LiteralPath $serviceLogPath
+            }
+
+            if (-not (Test-Path -LiteralPath $desktopLogPath)) {
+              throw "$PackageName did not create desktop_launcher.log."
+            }
+
+            $desktopLog = Get-Content -LiteralPath $desktopLogPath -Raw
+            if ($desktopLog -notmatch "Service became healthy") {
+              throw "$PackageName never reported a healthy local service."
+            }
+            if ($desktopLog -notmatch "WebView attached") {
+              throw "$PackageName never attached the desktop WebView."
+            }
+          }
+
+          Test-LJQCAppLauncher `
+            -ExecutablePath (Join-Path $env:BUILD_OUTPUT_ROOT "release\LJQCApp.exe") `
+            -PackageName "single-file package"
+          Test-LJQCAppLauncher `
+            -ExecutablePath (Join-Path $env:BUILD_OUTPUT_ROOT "dist\LJQCApp\LJQCApp.exe") `
+            -PackageName "folder package"
+
+      - name: Upload startup diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: LJQCApp-startup-diagnostics
+          path: ${{ runner.temp }}\LJQCAppLocalAppData\LJQCApp\*.log
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Prepare downloadable packages
         shell: pwsh
         run: |
